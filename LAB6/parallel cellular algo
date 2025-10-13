@@ -1,0 +1,101 @@
+import random
+import math
+import copy
+
+# ---------- Helper Functions ----------
+
+def total_distance(route, distance_matrix):
+    """Compute total distance of a given route."""
+    dist = 0
+    for i in range(len(route)):
+        dist += distance_matrix[route[i - 1]][route[i]]
+    return dist
+
+def fitness(route, distance_matrix):
+    """Higher fitness = shorter route."""
+    return 1 / total_distance(route, distance_matrix)
+
+def crossover(parent1, parent2):
+    """Order Crossover (OX) for TSP."""
+    size = len(parent1)
+    start, end = sorted(random.sample(range(size), 2))
+    child = [None] * size
+    child[start:end] = parent1[start:end]
+    pointer = 0
+    for city in parent2:
+        if city not in child:
+            while child[pointer] is not None:
+                pointer += 1
+            child[pointer] = city
+    return child
+
+def mutate(route, mutation_rate=0.1):
+    """Swap mutation."""
+    if random.random() < mutation_rate:
+        i, j = random.sample(range(len(route)), 2)
+        route[i], route[j] = route[j], route[i]
+    return route
+
+# ---------- Cellular Algorithm ----------
+
+def parallel_cellular_tsp(distance_matrix, grid_size=4, generations=200):
+    num_cities = len(distance_matrix)
+    num_cells = grid_size * grid_size
+
+    # Initialize random population
+    population = [random.sample(range(num_cities), num_cities) for _ in range(num_cells)]
+    fitness_values = [fitness(route, distance_matrix) for route in population]
+
+    # Define neighborhood offsets for a 2D grid
+    def neighbors(idx):
+        row, col = divmod(idx, grid_size)
+        neigh = []
+        for dr, dc in [(-1,0), (1,0), (0,-1), (0,1)]:
+            r, c = row + dr, col + dc
+            if 0 <= r < grid_size and 0 <= c < grid_size:
+                neigh.append(r * grid_size + c)
+        return neigh
+
+    # Evolution loop
+    for gen in range(generations):
+        new_population = copy.deepcopy(population)
+
+        for i in range(num_cells):
+            neigh_idx = neighbors(i)
+            neigh_idx.append(i)
+
+            # Select parents from local neighborhood
+            parent1 = population[max(neigh_idx, key=lambda k: fitness_values[k])]
+            parent2 = population[random.choice(neigh_idx)]
+
+            # Crossover + Mutation
+            child = crossover(parent1, parent2)
+            child = mutate(child)
+
+            # Replacement
+            child_fit = fitness(child, distance_matrix)
+            if child_fit > fitness_values[i]:
+                new_population[i] = child
+                fitness_values[i] = child_fit
+
+        population = new_population
+
+    # Return best route
+    best_idx = max(range(num_cells), key=lambda i: fitness_values[i])
+    return population[best_idx], total_distance(population[best_idx], distance_matrix)
+
+# ---------- Example Run ----------
+
+if __name__ == "__main__":
+    # Example distance matrix (5 cities)
+    distance_matrix = [
+        [0, 2, 9, 10, 7],
+        [1, 0, 6, 4, 3],
+        [15, 7, 0, 8, 3],
+        [6, 3, 12, 0, 11],
+        [10, 4, 8, 5, 0]
+    ]
+
+    best_route, best_distance = parallel_cellular_tsp(distance_matrix, grid_size=3, generations=300)
+    print("Best route found:", best_route)
+    print("Best distance:", best_distance)
